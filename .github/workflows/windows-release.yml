@@ -1,0 +1,54 @@
+name: Build Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to upload the Windows package to"
+        required: true
+        default: "v1.0.0"
+      version:
+        description: "Version used in the Windows zip filename"
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Package Windows build
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $package = "port_manager-windows-v$version.zip"
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath $package -Force
+          echo "WINDOWS_PACKAGE=$package" >> $env:GITHUB_ENV
+
+      - name: Upload package to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release upload "${{ inputs.tag }}" "$env:WINDOWS_PACKAGE" --clobber
